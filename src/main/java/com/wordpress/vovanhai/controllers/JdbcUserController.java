@@ -1,38 +1,77 @@
 package com.wordpress.vovanhai.controllers;
 
+import com.wordpress.vovanhai.dto.AuthInfos;
+import com.wordpress.vovanhai.dto.UserInfo;
 import com.wordpress.vovanhai.services.JdbcUserService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.annotation.Secured;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/api/users")
+@Slf4j
 public class JdbcUserController {
     @Autowired
     private JdbcUserService jdbcUserService;
+    @Autowired
+    private PasswordEncoder encoder;
+
     @PostMapping("/add")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<UserDetails> add(@RequestBody UserDetails userDetails){
+    public ResponseEntity<?> add(@RequestBody UserInfo userInfo) {
+        UserDetails userDetails = User
+                .withUsername(userInfo.userName())
+                .password(encoder.encode(userInfo.password()))
+                .roles(userInfo.authorities())
+                .build();
         return ResponseEntity.ok(jdbcUserService.addUser(userDetails));
     }
-    @PostMapping("/change-psw")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<UserDetails> changePsw(@RequestBody ChangePassInfo us){
-        return ResponseEntity.ok(jdbcUserService.changePassword(us.username(), us.newPass(),us.oldPass()));
+
+    @PutMapping("/change-psw")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN', 'ROLE_USER')")
+//    @PreAuthorize("#username == authentication.principal.username")
+    public ResponseEntity<?> changePsw(Principal principal, @RequestBody String newPass) {
+        return ResponseEntity.ok(jdbcUserService.changePassword(
+                principal.getName(),
+                encoder.encode(newPass))
+        );
     }
-    @DeleteMapping("/del/{username}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<UserDetails> del(@PathVariable("username")String username){
+
+    @DeleteMapping("/{username}")
+    @Secured("ROLE_ADMIN")
+    public ResponseEntity<?> del(@PathVariable("username") String username) {
+        log.info("******deleting user {}", username);
+        UserDetails s = jdbcUserService.getByName(username);
+        if (s == null)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Credential " + username + " not found");
         return ResponseEntity.ok(jdbcUserService.deleteUser(username));
     }
 
     @GetMapping("/{username}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<UserDetails> getByName(@PathVariable("username") String username){
-        return ResponseEntity.ok(jdbcUserService.getByName(username));
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_USER')")
+    public ResponseEntity<?> getByName(@PathVariable("username") String username) {
+        UserDetails s = jdbcUserService.getByName(username);
+        if (s == null)
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Credential " + username + " not found");
+        return ResponseEntity.ok(s);
+    }
+
+    @GetMapping("/principal")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN','ROLE_USER')")
+    public ResponseEntity<AuthInfos> retrievePrincipal(Principal principal, Authentication auth) {
+        return ResponseEntity.ok(new AuthInfos(principal, auth));
     }
 }
+
 
 

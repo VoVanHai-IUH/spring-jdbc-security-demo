@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
-import org.springframework.security.provisioning.UserDetailsManager;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -13,7 +12,7 @@ import javax.sql.DataSource;
 @RequiredArgsConstructor
 public class JdbcUserService {
     private DataSource dataSource;
-    private UserDetailsManager manager;
+    private JdbcUserDetailsManager manager;
 
     @Autowired
     public JdbcUserService(DataSource dataSource) {
@@ -26,9 +25,9 @@ public class JdbcUserService {
         return userDetails;
     }
 
-    public UserDetails changePassword(String username, String oldPass, String newPass) {
+    public UserDetails changePassword(String username, String newPass) {
         UserDetails us = manager.loadUserByUsername(username);
-        manager.changePassword(oldPass, newPass);
+        manager.changePassword("noop", newPass);
         return (us);
     }
 
@@ -38,7 +37,7 @@ public class JdbcUserService {
         return us;
     }
 
-    public UserDetails getByName(String username){
+    public UserDetails getByName(String username) {
         return manager.loadUserByUsername(username);
     }
 }
